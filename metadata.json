@@ -1,0 +1,6 @@
+{
+  "name": "n8n Advanced Workflow Generator",
+  "description": "Generate n8n workflow JSON from natural language descriptions using AI. Designed for business and professional use to kickstart complex automation projects.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
