@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # Development mode with hot-reload
+  dev:
+    build:
+      context: .
+      target: development
+    container_name: n8n-wf-gen-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    stdin_open: true
+    tty: true
+    profiles:
+      - dev
+
+  # Production mode with nginx
+  prod:
+    build:
+      context: .
+      target: production
+      args:
+        - GEMINI_API_KEY=${GEMINI_API_KEY}
+    container_name: n8n-wf-gen-prod
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    profiles:
+      - prod
