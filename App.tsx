@@ -4,13 +4,16 @@ import { Header } from './components/Header';
 import { WorkflowInputArea } from './components/WorkflowInputArea';
 import { WorkflowOutputArea } from './components/WorkflowOutputArea';
 import { ErrorMessage } from './components/ErrorMessage';
-import { generateWorkflow } from './services/geminiService';
+import { ValidationReport } from './components/ValidationReport';
+import { generateEnhancedWorkflow } from './services/enhancedWorkflowGenerator';
 import { N8nWorkflow } from './types';
+import { ProcessingReport } from './services/postProcessors/workflowProcessor';
 import { APP_TITLE, FOOTER_TEXT } from './constants';
 
 const App: React.FC = () => {
   const [workflowDescription, setWorkflowDescription] = useState<string>('');
   const [generatedWorkflow, setGeneratedWorkflow] = useState<N8nWorkflow | null>(null);
+  const [processingReport, setProcessingReport] = useState<ProcessingReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKeyMissing, setApiKeyMissing] = useState<boolean>(false);
@@ -35,10 +38,17 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setGeneratedWorkflow(null);
+    setProcessingReport(null);
 
     try {
-      const workflow = await generateWorkflow(workflowDescription);
-      setGeneratedWorkflow(workflow);
+      const result = await generateEnhancedWorkflow(workflowDescription);
+
+      if (result.success) {
+        setGeneratedWorkflow(result.workflow);
+        setProcessingReport(result.processingReport);
+      } else {
+        setError(`Failed to generate workflow: ${result.error || 'Unknown error'}`);
+      }
     } catch (err) {
       if (err instanceof Error) {
         setError(`Failed to generate workflow: ${err.message}`);
@@ -70,10 +80,13 @@ const App: React.FC = () => {
             />
           </div>
           <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg min-h-[300px] flex flex-col">
+            {/* Show validation report if available */}
+            {processingReport && <ValidationReport report={processingReport} />}
+
             <WorkflowOutputArea
               workflow={generatedWorkflow}
               isLoading={isLoading}
-              error={error && !apiKeyMissing ? error : null} 
+              error={error && !apiKeyMissing ? error : null}
             />
           </div>
         </div>
