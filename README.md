@@ -175,10 +175,4 @@ This project includes several production-ready improvements:
 3. Review the generated n8n workflow JSON
 4. Download or copy the JSON to import into n8n
 
-## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
-
-## 📄 License
-
-[Your License Here]
