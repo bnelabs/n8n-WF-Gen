@@ -1,12 +1,12 @@
 /**
  * Backend API Server
- * Proxies requests to Gemini API to protect API key
+ * Proxies requests to AI providers to protect API keys
  */
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import { GoogleGenAI, GenerateContentResponse as GeminiGenerateContentResponse } from '@google/genai';
+import { ProviderFactory, ProviderType } from './providers';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,7 +30,7 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -92,15 +92,6 @@ app.post('/api/generate-workflow', async (req: Request, res: Response) => {
       });
     }
 
-    // Check API key
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error('GEMINI_API_KEY is not set');
-      return res.status(500).json({
-        error: 'Server configuration error: API key not configured'
-      });
-    }
-
     // Check cache
     const cacheKey = getCacheKey(description);
     if (useCache && responseCache.has(cacheKey)) {
@@ -120,25 +111,23 @@ app.post('/api/generate-workflow', async (req: Request, res: Response) => {
       }
     }
 
-    // Call Gemini API
-    console.log('Calling Gemini API for workflow generation...');
-    const ai = new GoogleGenAI({ apiKey });
+    // Create AI provider
+    const providerType = (req.body.provider || process.env.AI_PROVIDER || 'gemini') as ProviderType;
+    console.log(`Using AI provider: ${providerType}`);
 
+    const aiProvider = ProviderFactory.createProvider(providerType);
+
+    // Call AI provider
+    console.log(`Calling ${aiProvider.name} API for workflow generation...`);
     const fullPrompt = `User's workflow description:\n${description}\n\nn8n Workflow JSON:`;
 
-    const response: GeminiGenerateContentResponse = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL_NAME || 'gemini-2.5-flash-preview-04-17',
-      contents: fullPrompt,
-      config: {
-        systemInstruction: systemInstruction || '',
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-        topP: 0.9,
-        topK: 32,
-      }
+    const response = await aiProvider.generateContent({
+      messages: [{ role: 'user', content: fullPrompt }],
+      systemPrompt: systemInstruction || '',
+      temperature: 0.2,
     });
 
-    let jsonStr = response.text.trim();
+    let jsonStr = response.content.trim();
 
     // Remove Markdown fences if present
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
@@ -183,10 +172,18 @@ app.post('/api/generate-workflow', async (req: Request, res: Response) => {
     console.error('Error generating workflow:', error);
 
     if (error instanceof Error) {
-      // Check for specific Gemini API errors
-      if (error.message.includes('400') || error.message.includes('API key')) {
+      // Check for specific AI provider errors
+      if (error.message.includes('not configured') || error.message.includes('API key')) {
         return res.status(401).json({
-          error: 'Invalid API configuration. Please contact support.'
+          error: 'AI provider not configured. Please check your environment variables.',
+          details: error.message
+        });
+      }
+
+      if (error.message.includes('Connection Error') || error.message.includes('ECONNREFUSED')) {
+        return res.status(503).json({
+          error: 'Cannot connect to AI provider. Please check if the service is running.',
+          details: error.message
         });
       }
 
@@ -209,23 +206,46 @@ app.post('/api/generate-workflow', async (req: Request, res: Response) => {
 });
 
 // Clear cache endpoint (for development/admin)
-app.post('/api/clear-cache', (req: Request, res: Response) => {
+app.post('/api/clear-cache', (_req: Request, res: Response) => {
   const cleared = responseCache.size;
   responseCache.clear();
   res.json({ message: `Cleared ${cleared} cached entries` });
 });
 
+// Get available AI providers endpoint
+app.get('/api/providers', (_req: Request, res: Response) => {
+  try {
+    const configuredProviders = ProviderFactory.getConfiguredProviders();
+    const currentProvider = process.env.AI_PROVIDER || 'gemini';
+
+    res.json({
+      current: currentProvider,
+      configured: configuredProviders,
+      available: ['gemini', 'openai', 'anthropic', 'openrouter', 'ollama', 'lmstudio'],
+    });
+  } catch (error) {
+    console.error('Error fetching providers:', error);
+    res.status(500).json({
+      error: 'Failed to fetch provider information'
+    });
+  }
+});
+
 // 404 handler
-app.use((req: Request, res: Response) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
 // Start server
 app.listen(PORT, () => {
+  const currentProvider = process.env.AI_PROVIDER || 'gemini';
+  const configuredProviders = ProviderFactory.getConfiguredProviders();
+
   console.log(`🚀 API Server running on port ${PORT}`);
   console.log(`📊 Rate limit: 20 requests/minute per IP`);
   console.log(`💾 Cache enabled with ${CACHE_TTL / 60000} minute TTL`);
-  console.log(`🔑 API Key configured: ${process.env.GEMINI_API_KEY ? 'Yes' : 'No'}`);
+  console.log(`🤖 Current AI Provider: ${currentProvider.toUpperCase()}`);
+  console.log(`✅ Configured Providers: ${configuredProviders.join(', ') || 'None'}`);
 });
 
 export default app;

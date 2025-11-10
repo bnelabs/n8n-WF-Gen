@@ -1,10 +1,12 @@
 # n8n Advanced Workflow Generator
 
-An intelligent AI-powered tool that generates n8n workflows from natural language descriptions. Built with React, TypeScript, and powered by Google's Gemini AI.
+An intelligent AI-powered tool that generates n8n workflows from natural language descriptions. Built with React, TypeScript, and powered by multiple AI providers including Google Gemini, OpenAI, Anthropic Claude, and local models.
 
 ## ✨ Features
 
 - 🤖 **AI-Powered Generation**: Describe your workflow in plain English, get production-ready n8n JSON
+- 🔌 **Multiple AI Providers**: Choose from Gemini, OpenAI, Anthropic, OpenRouter, Ollama, or LM Studio
+- 🏠 **Local Model Support**: Run with Ollama or LM Studio for complete privacy and no API costs
 - 🔒 **Secure Architecture**: API keys stored server-side with rate limiting and request validation
 - 🐳 **Docker Support**: Run with or without Docker - your choice
 - 🧪 **Tested & Validated**: Comprehensive validation with automatic error fixing
@@ -95,6 +97,22 @@ docker-compose --profile prod logs -f
    npm run dev
    ```
 
+## 🤖 AI Provider Support
+
+This application now supports **6 different AI providers**:
+
+### Cloud Providers
+- **Google Gemini** (Default) - Fast and cost-effective
+- **OpenAI** - GPT-4 and GPT-3.5 models
+- **Anthropic Claude** - Claude 3.5 Sonnet and others
+- **OpenRouter** - Access to many models through one API
+
+### Local Providers (Free, No API Key)
+- **Ollama** - Run Llama, Mistral, and other models locally
+- **LM Studio** - User-friendly local model interface
+
+**👉 See [PROVIDERS.md](./PROVIDERS.md) for detailed setup instructions for each provider.**
+
 ## 🔧 Environment Variables
 
 ### Frontend (`.env`)
@@ -104,8 +122,22 @@ API_BASE_URL=http://localhost:3001  # Backend API URL
 
 ### Backend (`server/.env`)
 ```bash
-GEMINI_API_KEY=your_api_key_here              # REQUIRED
-GEMINI_MODEL_NAME=gemini-2.5-flash-preview-04-17
+# Choose your AI provider
+AI_PROVIDER=gemini  # Options: gemini, openai, anthropic, openrouter, ollama, lmstudio
+
+# Configure at least one provider
+GEMINI_API_KEY=your_api_key_here
+GEMINI_MODEL=gemini-2.5-flash-preview-04-17
+
+# Or use OpenAI
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-4-turbo-preview
+
+# Or use local models (no API key needed)
+OLLAMA_MODEL=llama2
+OLLAMA_BASE_URL=http://localhost:11434
+
+# See PROVIDERS.md for all configuration options
 PORT=3001
 FRONTEND_URL=http://localhost:5173
 ```
@@ -125,21 +157,24 @@ npm run test:coverage
 
 ## 🏗️ Architecture
 
-**Secure Backend Architecture:**
+**Secure Multi-Provider Architecture:**
 ```
-Client (React) → Express Backend → Gemini API
-                      ↓
-                  Rate Limiting (20 req/min)
-                  Response Caching
-                  Input Validation
+Client (React) → Express Backend → Provider Factory → Selected AI Provider
+                      ↓                                 ├─ Gemini
+                  Rate Limiting                         ├─ OpenAI
+                  Response Caching                      ├─ Anthropic
+                  Input Validation                      ├─ OpenRouter
+                                                        ├─ Ollama (Local)
+                                                        └─ LM Studio (Local)
 ```
 
 **Key Security Features:**
 - ✅ API keys secured server-side (never exposed to client)
-- ✅ Rate limiting prevents abuse
+- ✅ Rate limiting prevents abuse (20 req/min per IP)
 - ✅ Input validation and sanitization
 - ✅ Request/response caching reduces API costs
 - ✅ Error boundaries prevent app crashes
+- ✅ Provider abstraction allows easy switching between AI models
 
 ## 📦 Tech Stack
 
@@ -150,8 +185,15 @@ Client (React) → Express Backend → Gemini API
 
 **Backend:**
 - Express.js
-- Google Gemini AI
+- Multi-provider AI support:
+  - Google Gemini AI
+  - OpenAI (GPT-4/3.5)
+  - Anthropic Claude
+  - OpenRouter
+  - Ollama (Local)
+  - LM Studio (Local)
 - Rate limiting & CORS middleware
+- Provider abstraction layer
 
 **Infrastructure:**
 - Docker & Docker Compose
