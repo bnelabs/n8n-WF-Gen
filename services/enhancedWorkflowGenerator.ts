@@ -3,17 +3,14 @@
  * Main orchestrator that combines intent detection, node selection, AI generation, validation, and post-processing
  */
 
-import { GoogleGenAI, GenerateContentResponse as GeminiGenerateContentResponse } from "@google/genai";
 import { N8nWorkflow } from '../types';
-import { GEMINI_MODEL_NAME } from '../constants';
 import { detectIntent, getIntentSummary } from './intentDetection';
 import { selectNodesForIntent, getRecommendationSummary } from './nodeSelector';
 import { processWorkflow, ProcessingReport, getDetailedReport } from './postProcessors/workflowProcessor';
 import { NODE_REGISTRY } from './registry/nodeRegistry';
 
-const getApiKey = (): string | undefined => {
-  return process.env.API_KEY;
-};
+// Backend API URL - configurable via environment variable
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001';
 
 export interface GenerationResult {
   workflow: N8nWorkflow;
@@ -444,7 +441,7 @@ export async function generateEnhancedWorkflow(description: string): Promise<Gen
 
     // Step 4: Generate workflow with AI
     console.log('\nStep 3: Generating workflow with AI...');
-    const workflow = await callGeminiAPI(enhancedPrompt);
+    const workflow = await callBackendAPI(enhancedPrompt);
 
     // Step 5: Validate and auto-fix
     console.log('\nStep 4: Validating and auto-fixing workflow...');
@@ -496,42 +493,49 @@ function buildEnhancedPrompt(description: string, intent: any, recommendations: 
   return prompt;
 }
 
-async function callGeminiAPI(prompt: string): Promise<N8nWorkflow> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("API_KEY is not configured. Please set the API_KEY environment variable.");
-  }
+async function callBackendAPI(prompt: string): Promise<N8nWorkflow> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/generate-workflow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        description: prompt.replace('User\'s workflow description:\n', '').replace('\n\nn8n Workflow JSON:', ''),
+        systemInstruction: ENHANCED_SYSTEM_INSTRUCTION,
+        useCache: true,
+      }),
+    });
 
-  const ai = new GoogleGenAI({ apiKey });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
 
-  const response: GeminiGenerateContentResponse = await ai.models.generateContent({
-    model: GEMINI_MODEL_NAME,
-    contents: prompt,
-    config: {
-      systemInstruction: ENHANCED_SYSTEM_INSTRUCTION,
-      responseMimeType: "application/json",
-      temperature: 0.2, // Lower temperature for more consistent output
-      topP: 0.9,
-      topK: 32,
+      // Provide more specific error messages based on status code
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      } else if (response.status === 400) {
+        throw new Error(errorData.error || 'Invalid request. Please check your workflow description.');
+      } else if (response.status === 401 || response.status === 500) {
+        throw new Error(errorData.error || 'Server error. Please try again later.');
+      } else {
+        throw new Error(errorData.error || `Request failed with status ${response.status}`);
+      }
     }
-  });
 
-  let jsonStr = response.text.trim();
+    const data = await response.json();
 
-  // Remove Markdown fences if present
-  const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
-  const match = jsonStr.match(fenceRegex);
-  if (match && match[2]) {
-    jsonStr = match[2].trim();
+    if (!data.workflow) {
+      throw new Error('Invalid response from server: missing workflow data');
+    }
+
+    return data.workflow as N8nWorkflow;
+
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        'Cannot connect to backend server. Please ensure the API server is running at ' + API_BASE_URL
+      );
+    }
+    throw error;
   }
-
-  // Parse JSON
-  const parsedData = JSON.parse(jsonStr);
-
-  // Basic validation
-  if (!parsedData.nodes || !parsedData.connections) {
-    throw new Error("Generated JSON is missing essential 'nodes' or 'connections' properties.");
-  }
-
-  return parsedData as N8nWorkflow;
 }

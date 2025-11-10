@@ -4,9 +4,9 @@
  */
 
 import { N8nWorkflow } from '../../types';
-import { ValidationResult, createValidationResult, addIssue } from '../../types/validation';
+import { ValidationResult, createValidationResult, addIssue, UnknownWorkflow } from '../../types/validation';
 
-export function validateStructure(workflow: any): ValidationResult {
+export function validateStructure(workflow: UnknownWorkflow): ValidationResult {
   const result = createValidationResult();
 
   // Check if workflow is an object
@@ -100,14 +100,14 @@ export function validateStructure(workflow: any): ValidationResult {
 
   // Validate individual nodes
   const nodeIds = new Set<string>();
-  workflow.nodes.forEach((node: any, index: number) => {
+  workflow.nodes.forEach((node: unknown, index: number) => {
     validateNode(node, index, nodeIds, result);
   });
 
   return result;
 }
 
-function validateNode(node: any, index: number, nodeIds: Set<string>, result: ValidationResult): void {
+function validateNode(node: unknown, index: number, nodeIds: Set<string>, result: ValidationResult): void {
   const nodeRef = `Node ${index}`;
 
   if (!node || typeof node !== 'object') {

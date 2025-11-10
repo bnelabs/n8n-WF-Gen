@@ -4,12 +4,12 @@
  */
 
 import { N8nWorkflow } from '../../types';
-import { ValidationResult, createValidationResult, addIssue } from '../../types/validation';
+import { ValidationResult, createValidationResult, addIssue, UnknownWorkflow } from '../../types/validation';
 import { validateStructure } from './structureValidator';
 import { validateGraph } from './graphValidator';
 import { validateNodes } from './nodeValidator';
 
-export function validateWorkflow(workflow: any): ValidationResult {
+export function validateWorkflow(workflow: UnknownWorkflow): ValidationResult {
   // Combine results from all validators
   const structureResult = validateStructure(workflow);
 
