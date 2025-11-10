@@ -16,22 +16,10 @@ const App: React.FC = () => {
   const [processingReport, setProcessingReport] = useState<ProcessingReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [apiKeyMissing, setApiKeyMissing] = useState<boolean>(false);
-
-  React.useEffect(() => {
-    if (!process.env.API_KEY) {
-      setApiKeyMissing(true);
-      setError("API_KEY environment variable is not set. Please configure it to use the AI features.");
-    }
-  }, []);
 
   const handleGenerateWorkflow = useCallback(async () => {
     if (!workflowDescription.trim()) {
       setError('Please enter a workflow description.');
-      return;
-    }
-    if (apiKeyMissing) {
-      setError("API_KEY environment variable is not set. Cannot generate workflow.");
       return;
     }
 
@@ -47,11 +35,11 @@ const App: React.FC = () => {
         setGeneratedWorkflow(result.workflow);
         setProcessingReport(result.processingReport);
       } else {
-        setError(`Failed to generate workflow: ${result.error || 'Unknown error'}`);
+        setError(`${result.error || 'Unknown error'}`);
       }
     } catch (err) {
       if (err instanceof Error) {
-        setError(`Failed to generate workflow: ${err.message}`);
+        setError(err.message);
       } else {
         setError('An unknown error occurred while generating the workflow.');
       }
@@ -59,16 +47,13 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [workflowDescription, apiKeyMissing]);
+  }, [workflowDescription]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100 text-slate-800">
       <Header title={APP_TITLE} />
       
       <main className="flex-grow container mx-auto p-4 md:p-8 space-y-6">
-        {apiKeyMissing && (
-          <ErrorMessage message="Warning: API_KEY is not configured. AI functionality will be disabled."/>
-        )}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
             <WorkflowInputArea
@@ -76,7 +61,7 @@ const App: React.FC = () => {
               setDescription={setWorkflowDescription}
               onGenerate={handleGenerateWorkflow}
               isLoading={isLoading}
-              disabled={apiKeyMissing}
+              disabled={false}
             />
           </div>
           <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg min-h-[300px] flex flex-col">
@@ -86,11 +71,10 @@ const App: React.FC = () => {
             <WorkflowOutputArea
               workflow={generatedWorkflow}
               isLoading={isLoading}
-              error={error && !apiKeyMissing ? error : null}
+              error={error}
             />
           </div>
         </div>
-        {error && apiKeyMissing && <ErrorMessage message={error} /> }
       </main>
 
       <footer className="bg-slate-800 text-slate-200 text-center p-4 shadow-md">

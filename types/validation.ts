@@ -5,6 +5,13 @@
 
 export type ValidationSeverity = 'error' | 'warning' | 'info';
 
+// Type for unknown workflow data during validation
+export type UnknownWorkflow = unknown;
+
+export interface ValidationIssueDetails {
+  [key: string]: unknown;
+}
+
 export interface ValidationIssue {
   severity: ValidationSeverity;
   code: string;
@@ -12,7 +19,7 @@ export interface ValidationIssue {
   nodeId?: string;
   nodeName?: string;
   fix?: string; // Suggested fix
-  details?: any;
+  details?: ValidationIssueDetails;
 }
 
 export interface ValidationResult {
@@ -58,7 +65,7 @@ export function addIssue(
     nodeId?: string;
     nodeName?: string;
     fix?: string;
-    details?: any;
+    details?: ValidationIssueDetails;
   }
 ): void {
   const issue: ValidationIssue = {
